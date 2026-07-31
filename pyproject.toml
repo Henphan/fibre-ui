@@ -1,0 +1,11 @@
+[project]
+name = "oct-fibre-annotator"
+version = "0.1.0"
+
+dependencies = [
+	"numpy",
+	"napari",
+	"opencv-python",
+	"pandas",
+]
+
