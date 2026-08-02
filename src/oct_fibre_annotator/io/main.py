@@ -16,7 +16,7 @@ from pathlib import Path
 def create_keys(path:Path) -> list[str]:
     keys = []
     for p in path.iterdir():
-        key = str(p).split(".tiff")[0]
+        key = p.name.split("_Z")[0]
         if key not in keys:
             keys.append(key)
     return keys
@@ -35,7 +35,7 @@ def create_stack_dict(path:Path):
             raise Exception
         # TODO: this part can be shorten down for sure
         # Getting the key again can't be an effective way
-        key = str(p).split(".tiff")[0]
+        key = p.name.split("_Z")[0]
         if key in keys:
             stack_dict.setdefault(key, []).append(img)
     for key in stack_dict:
