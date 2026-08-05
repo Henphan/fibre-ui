@@ -30,7 +30,7 @@ def create_stack_dict(path:Path):
     keys = create_keys(path)
     paths = sorted(path.iterdir(), key = lambda path: int(path.stem.split("_Z")[1].split(".tif")[0]))
     for p in paths:
-        img = cv.imread(str(p))
+        img = cv.imread(str(p), cv.IMREAD_GRAYSCALE)
         if img is None:
             raise Exception
         # TODO: this part can be shorten down for sure
