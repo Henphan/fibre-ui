@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from magicgui.widgets import Slider
 import napari
 import numpy as np
 from magicgui import magicgui
@@ -7,7 +8,7 @@ from magicgui import magicgui
 
 def create_app(
     stack_dict: dict[str, np.ndarray],
-    output_path: Path = Path("points.csv"),
+    output_path: Path = Path("lines.csv"),
 ) -> napari.Viewer:
     viewer = napari.Viewer(title="OCT Fibre Annotator")
 
@@ -18,32 +19,28 @@ def create_app(
             colormap="gray",
         )
 
-    points_layer = viewer.add_points(
-        data=[],
-        name="Annotations",
-        face_color="red",
-        size=3,
+    lines_layer = viewer.add_shapes(
+        data = [],
+        name = "Annotations",
+        edge_color = "red",
     )
-    points_layer.mode = "add"
 
     @magicgui(call_button="Save points")
     def save_points() -> None:
-        points = points_layer.data
+        lines = lines_layer.data
 
-        if len(points) == 0:
-            print("No points to save.")
+        if len(lines) == 0:
+            print("No lines to save.")
             return
 
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        np.savetxt(
-            output_path,
-            points,
-            delimiter=",",
-            header="y,x",
-            comments="",
-        )
+        output_path.parent.mkdir(parents=True, exist_ok = True)
 
-        print(f"Saved {len(points)} points to {output_path}")
+
+        with open(output_path, "w") as f:
+            f.write("start_point, end_point\n")
+            for line in lines:
+                start, end = line
+                f.write("{}, {}\n".format(start, end))
 
     viewer.window.add_dock_widget(
         save_points,
