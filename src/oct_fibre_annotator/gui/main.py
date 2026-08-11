@@ -77,33 +77,35 @@ def create_app(
     def next_stack() -> None:
         nonlocal i
 
-        viewer.layers.remove(viewer.layers[stack_names[i]]) 
+        if i + 1 < len(stack_names):
+            viewer.layers.remove(viewer.layers[stack_names[i]]) 
 
-        i += 1
+            i += 1
 
-        viewer.add_image(
-            stack_dict[stack_names[i]],
-            name = stack_names[i],
-            colormap = "gray",
-        )
+            viewer.add_image(
+                stack_dict[stack_names[i]],
+                name = stack_names[i],
+                colormap = "gray",
+            )
 
-        restructure_layers()
+            restructure_layers()
 
     @magicgui(call_button="Previous stack")
     def prev_stack() -> None:
         nonlocal i
 
-        viewer.layers.remove(viewer.layers[stack_names[i]]) 
+        if i - 1 >= 0:
+            viewer.layers.remove(viewer.layers[stack_names[i]]) 
 
-        i -= 1
+            i -= 1
 
-        viewer.add_image(
-            stack_dict[stack_names[i]],
-            name = stack_names[i],
-            colormap = "gray",
-        )
+            viewer.add_image(
+                stack_dict[stack_names[i]],
+                name = stack_names[i],
+                colormap = "gray",
+            )
 
-        restructure_layers()
+            restructure_layers()
 
     def restructure_layers():
         viewer.layers.move(
@@ -111,6 +113,28 @@ def create_app(
             len(viewer.layers),
         )
         viewer.layers.selection.active = lines_layer
+
+    @magicgui(
+        threshold = {"widget_type":"FloatSlider", "max":255}
+    )
+    def threshold_widget(threshold:"float"):
+        nonlocal i
+        
+        name = stack_names[i]
+        new_stack = stack_dict[name] > threshold
+        viewer.layers.remove(viewer.layers[stack_names[i]]) 
+
+        viewer.add_image(
+            new_stack,
+            name = name,
+            colormap="gray",
+        )
+
+        restructure_layers()
+
+
+
+
     # Combining the widget into one container
     combined_widget = Container(widgets=[save_lines, load_lines, next_stack, prev_stack])
 
@@ -120,6 +144,13 @@ def create_app(
         name="Control panel",
         area="right",
     )
+    viewer.window.add_dock_widget(
+        widget=threshold_widget,
+        name="Image preprocessing",
+        area="right",
+        tabify=True,
+    )
+
 
     return viewer
 
