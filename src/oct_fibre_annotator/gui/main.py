@@ -1,9 +1,10 @@
 from pathlib import Path
 
-from magicgui.widgets import Slider
+from magicgui.widgets import Slider, Container
 import napari
 import numpy as np
 from magicgui import magicgui
+from vispy.scene.widgets import widget
 
 
 def create_app(
@@ -17,13 +18,14 @@ def create_app(
     # Defining the Viewer, which is the application as far as I know
     viewer = napari.Viewer(title="OCT Fibre Annotator")
 
-    # Add each stack into the application
-    for name, stack in stack_dict.items():
-        viewer.add_image(
-            stack,
-            name=name,
-            colormap="gray",
-        )
+    # Add the first stack into the application
+    stack_names = list(stack_dict.keys())
+    i = 0
+    viewer.add_image(
+        stack_dict[stack_names[i]],
+        name = stack_names[i],
+        colormap = "gray",
+    )
 
     # Adding the line drawing layer
     lines_layer = viewer.add_shapes(
@@ -53,10 +55,50 @@ def create_app(
                 start, end = line
                 f.write("{}, {}\n".format(start, end))
 
+    @magicgui(call_button="Next stack")
+    def next_stack() -> None:
+        nonlocal i
+
+        viewer.layers.remove(viewer.layers[stack_names[i]]) 
+
+        i += 1
+
+        viewer.add_image(
+            stack_dict[stack_names[i]],
+            name = stack_names[i],
+            colormap = "gray",
+        )
+
+        restructure_layers()
+
+    @magicgui(call_button="Previous stack")
+    def prev_stack() -> None:
+        nonlocal i
+
+        viewer.layers.remove(viewer.layers[stack_names[i]]) 
+
+        i -= 1
+
+        viewer.add_image(
+            stack_dict[stack_names[i]],
+            name = stack_names[i],
+            colormap = "gray",
+        )
+
+        restructure_layers()
+
+    def restructure_layers():
+        viewer.layers.move(
+            viewer.layers.index(lines_layer),
+            len(viewer.layers),
+        )
+        viewer.layers.selection.active = lines_layer
+    # Combining the widget into one container
+    combined_widget = Container(widgets=[save_lines, next_stack, prev_stack])
 
     # Create a dock for widgets to the right side
     viewer.window.add_dock_widget(
-        save_lines,
+        widget=combined_widget,
         name="Control panel",
         area="right",
     )
