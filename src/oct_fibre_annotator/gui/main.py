@@ -9,7 +9,7 @@ from vispy.scene.widgets import widget
 
 def create_app(
     stack_dict: dict[str, np.ndarray],
-    output_path: Path = Path("lines.csv"),
+    output_dir: Path = Path("/home/henphan/GitHub/fibre-ui/data/"),
 ) -> napari.Viewer:
     # create_app is a function which takes in the stack dict and the output path
     # it returns the Viewer object from napari
@@ -39,21 +39,39 @@ def create_app(
     # Clicking the button will save the coordinates of all lines on the screen
     @magicgui(call_button="Save lines")
     def save_lines() -> None:
+        nonlocal i
+
         lines = lines_layer.data
+        print(lines)
 
         # When no line is drawn
         if len(lines) == 0:
             print("No lines to save.")
             return
 
+        output_path = output_dir / Path("{}_lines.csv".format(stack_names[i]))
         output_path.parent.mkdir(parents=True, exist_ok = True)
 
-        # Write the coordinates of each line down into a .csv
+        # Write the coordinates of each line down into an image specific .csv
         with open(output_path, "w") as f:
-            f.write("start_point, end_point\n")
+            f.write("x1,y2,x2,y2\n")
             for line in lines:
                 start, end = line
-                f.write("{}, {}\n".format(start, end))
+                f.write("{},{},{},{}\n".format(start[0], start[1], end[0], end[1]))
+
+    @magicgui(call_button="Load lines")
+    def load_lines() -> None:
+        nonlocal i
+
+        output_path = output_dir / Path("{}_lines.csv".format(stack_names[i]))
+        # lines = np.loadtxt(output_path, delimiter=',', skiprows=2)
+        lines = np.loadtxt(output_path, delimiter=",", skiprows=1).reshape(-1, 2, 2)
+
+        lines_layer.data = []
+
+        for line in lines:
+            lines_layer.add(line, shape_type="line")
+
 
     @magicgui(call_button="Next stack")
     def next_stack() -> None:
@@ -94,7 +112,7 @@ def create_app(
         )
         viewer.layers.selection.active = lines_layer
     # Combining the widget into one container
-    combined_widget = Container(widgets=[save_lines, next_stack, prev_stack])
+    combined_widget = Container(widgets=[save_lines, load_lines, next_stack, prev_stack])
 
     # Create a dock for widgets to the right side
     viewer.window.add_dock_widget(
