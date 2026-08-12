@@ -44,7 +44,7 @@ def create_app(
         nonlocal i
 
         lines = lines_layer.data
-        print(lines)
+        colours = lines_layer.edge_color 
 
         # When no line is drawn
         if len(lines) == 0:
@@ -56,23 +56,27 @@ def create_app(
 
         # Write the coordinates of each line down into an image specific .csv
         with open(output_path, "w") as f:
-            f.write("x1,y2,x2,y2\n")
-            for line in lines:
+            f.write("r,g,b,y1,x1,y2,x2\n")
+            # NOTE: what is zip?
+            for line, colour in zip(lines, colours):
                 start, end = line
-                f.write("{},{},{},{}\n".format(start[0], start[1], end[0], end[1]))
+                r,g,b,a = colour
+                f.write("{},{},{},{},{},{},{},{}\n".format(r,g,b,a,start[0], start[1], end[0], end[1]))
 
     @magicgui(call_button="Load lines")
     def load_lines() -> None:
         nonlocal i
 
         output_path = output_dir / Path("{}_lines.csv".format(stack_names[i]))
-        # lines = np.loadtxt(output_path, delimiter=',', skiprows=2)
-        lines = np.loadtxt(output_path, delimiter=",", skiprows=1).reshape(-1, 2, 2)
+        data = np.loadtxt(output_path, delimiter=",", skiprows=1)
+        lines = data[:,4:8].reshape(-1,2,2)
+        colours = data[:,:4]
 
         lines_layer.data = []
 
         for line in lines:
             lines_layer.add(line, shape_type="line")
+        lines_layer.edge_color = colours
 
 
     @magicgui(call_button="Next stack")
