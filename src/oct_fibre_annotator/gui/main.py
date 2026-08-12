@@ -1,10 +1,12 @@
 from pathlib import Path
 
-from magicgui.widgets import Slider, Container
+from magicgui.widgets import Slider, Container, Label, CheckBox
 import napari
 import numpy as np
+import cv2 as cv
 from magicgui import magicgui
 from vispy.scene.widgets import widget
+from qtpy.QtWidgets import QListWidget, QAbstractItemView
 
 
 def create_app(
@@ -115,17 +117,48 @@ def create_app(
         viewer.layers.selection.active = lines_layer
 
     @magicgui(
-        threshold = {"widget_type":"FloatSlider", "max":255}
+        threshold = {
+            "widget_type":"Slider",
+            "max":255,
+        },
+        blur = {
+            "widget_type": "SpinBox",
+            "min": 1,
+            "max": 51,
+            "step": 2,
+        },
     )
-    def threshold_widget(threshold:"float"):
+    def preprocessing_widgets(
+        threshold:int,
+        blur:int,
+    ):
         nonlocal i
-        
         name = stack_names[i]
-        new_stack = stack_dict[name] > threshold
+        processed_stack = stack_dict[name]
+
+        for idx in range(pipeline.count()):
+            process_name = pipeline.item(idx).text()
+
+            if process_name == "Gaussian blur" and use_blur.value:
+                processed_stack = np.stack([
+                    cv.GaussianBlur(slice_, (blur,blur), 0)
+                    for slice_ in processed_stack
+                ])
+
+            if process_name == "Threshold" and use_threshold.value:
+                processed_stack = (processed_stack > threshold).astype(np.uint8) * 255
+
+            if process_name == "CLAHE" and use_clahe.value:
+                clahe = cv.createCLAHE(clipLimit=5)
+                processed_stack = np.stack([
+                    clahe.apply(slice_)
+                    for slice_ in processed_stack
+                ])
+
         viewer.layers.remove(viewer.layers[stack_names[i]]) 
 
         viewer.add_image(
-            new_stack,
+            processed_stack,
             name = name,
             colormap="gray",
         )
@@ -133,24 +166,56 @@ def create_app(
         restructure_layers()
 
 
+    # divier widgets
+    # TODO: Think of a way to turn these into a reusable function
+    divider1 = Label(value="---------- Preprocessing Options ----------")
+    divider2 = Label(value="---------- Pipeline order ----------")
 
+    # checkbox widgets
+    use_threshold = CheckBox(text="Threshold", value=False)
+    use_blur = CheckBox(text="Blur", value=False)
+    use_clahe = CheckBox(text="CLAHE", value=False)
 
-    # Combining the widget into one container
-    combined_widget = Container(widgets=[save_lines, load_lines, next_stack, prev_stack])
+    #rearrangeable cards
+    pipeline = QListWidget()
+    pipeline.addItems([
+        "Gaussian blur",
+        "Threshold",
+        "CLAHE"
+    ])
+
+    pipeline.setDragDropMode(
+        QAbstractItemView.InternalMove
+    )
+
+    # Combining the widgets into one container
+    io_container = Container(widgets=[save_lines, load_lines, next_stack, prev_stack])
+    preprocessing_container = Container(
+        widgets=[
+            preprocessing_widgets,
+            divider1,
+            use_threshold,
+            use_blur,
+            use_clahe,
+            divider2,
+        ]
+    )
+    # Adding the pipeline widget to the container
+    # TODO: make it look better
+    preprocessing_container.native.layout().addWidget(pipeline)
 
     # Create a dock for widgets to the right side
     viewer.window.add_dock_widget(
-        widget=combined_widget,
+        widget=io_container,
         name="Control panel",
         area="right",
     )
     viewer.window.add_dock_widget(
-        widget=threshold_widget,
+        widget=preprocessing_container,
         name="Image preprocessing",
         area="right",
         tabify=True,
     )
-
 
     return viewer
 
