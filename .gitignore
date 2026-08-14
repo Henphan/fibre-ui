@@ -2,3 +2,9 @@
 __pycache__/
 *.py[cod]
 
+# macOS
+.DS_Store
+
+# Data and annotation output
+data/
+*.csv
