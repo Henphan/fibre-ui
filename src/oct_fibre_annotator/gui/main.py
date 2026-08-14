@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from magicgui.widgets import Slider, Container, Label, CheckBox
+from magicgui.widgets import Slider, Container, Label, CheckBox, SpinBox
 import napari
 import numpy as np
 import cv2 as cv
@@ -8,6 +8,8 @@ from magicgui import magicgui
 from vispy.scene.widgets import widget
 from qtpy.QtWidgets import QListWidget, QAbstractItemView
 
+from rpy2.robjects.packages import importr
+from rpy2.robjects import FloatVector, DataFrame
 
 def create_app(
     stack_dict: dict[str, np.ndarray],
@@ -44,7 +46,7 @@ def create_app(
         nonlocal i
 
         lines = lines_layer.data
-        colours = lines_layer.edge_color 
+        colours = lines_layer.edge_color
 
         # When no line is drawn
         if len(lines) == 0:
@@ -192,6 +194,69 @@ def create_app(
         QAbstractItemView.InternalMove
     )
 
+    #Buttons for the jansonius mapping
+    # FloatSpinBox for the angle of incidence
+    @magicgui(
+        call_button = "Map path",
+        psi0 = {
+            "widget_type": "FloatSpinBox",
+            "min": -180.0,
+            "max": 180.0,
+            "step": 0.1,
+        },
+    )
+    def jansonius_widget(
+        psi0: float,
+    ):
+        vf = importr("visualFields")
+
+        path = vf.bundlePath(psi0)
+
+        lower = jansonius_range[0].value
+        upper = jansonius_range[1].value
+
+        r = FloatVector(np.arange(lower, upper, 0.1))
+        psi = path(r)
+
+        rpsi = DataFrame({
+            "r":r,
+            "psi":psi,
+        })
+
+        coords = vf.jpolar2cart(rpsi)
+
+        # converting the coords to match the OCT scan
+        x = np.asarray(coords.rx2("x"))
+        y = np.asarray(coords.rx2("y"))
+
+        x_scale = 237 / 15
+        y_scale = 22 / 2
+
+        fovea_row = 192
+        fovea_col = 384
+
+        rows = fovea_row - y_scale * y
+        cols = fovea_col + x_scale * x
+
+        scaled_coords = np.column_stack((rows, cols))
+
+        jansonius_map = viewer.add_points(
+            data = scaled_coords,
+            name = "Jansonius mappings",
+            face_color = "red",
+            size = 7
+        )
+
+    # Combining the radius widgets for the jansonius mapping
+    jansonius_range = Container(
+        widgets=[
+            SpinBox(value=4, min=4, max=30, label="Min"),
+            SpinBox(value=20, min=4, max=30, label="Max"),
+        ],
+        layout="horizontal",
+    )
+    jansonius_widget.insert(1, jansonius_range)
+
     # Combining the widgets into one container
     io_container = Container(widgets=[save_lines, load_lines, next_stack, prev_stack])
     preprocessing_container = Container(
@@ -204,6 +269,7 @@ def create_app(
             divider2,
         ]
     )
+
     # Adding the pipeline widget to the container
     # TODO: make it look better
     preprocessing_container.native.layout().addWidget(pipeline)
@@ -215,6 +281,13 @@ def create_app(
         area="right",
     )
     viewer.window.add_dock_widget(
+        widget = jansonius_widget,
+        name = "Jansonius map",
+        area = "right",
+        tabify=True,
+    )
+
+    viewer.window.add_dock_widget(
         widget=preprocessing_container,
         name="Image preprocessing",
         area="right",
@@ -225,9 +298,39 @@ def create_app(
 
 
 if __name__ == "__main__":
-    stack_dict = {
-        "Example": np.random.random((20, 256, 256)),
-    }
+    # stack_dict = {
+    #     "Example": np.random.random((20, 256, 256)),
+    # }
+    #
+    # create_app(stack_dict)
+    # napari.run()
 
-    create_app(stack_dict)
-    napari.run()
+    from rpy2.robjects.packages import importr
+    from rpy2.robjects import FloatVector, DataFrame
+
+    vf = importr("visualFields")
+
+    path = vf.bundlePath(-125)
+
+    r = FloatVector(range(4,20))
+    psi = path(r)
+
+    rpsi = DataFrame({
+        "r":r,
+        "psi":psi,
+    })
+
+    coords = vf.jpolar2cart(rpsi)
+
+    x = np.asarray(coords.rx2("x"))
+    y = np.asarray(coords.rx2("y"))
+
+    coordinates = np.column_stack((x, y))
+
+    new_coord = lambda x, y: (384+(237/15)*x, 192+(22/2)*y)
+
+
+
+
+
+
