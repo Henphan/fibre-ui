@@ -27,7 +27,6 @@ def create_keys(path:Path) -> list[str]:
 # TODO: add the return type for the dictionary
 def create_stack_dict(path:Path):
     stack_dict = dict()
-    keys = create_keys(path)
     paths = sorted(path.iterdir(), key = lambda path: int(path.stem.split("_Z")[1].split(".tif")[0]))
     for p in paths:
         img = cv.imread(str(p), cv.IMREAD_GRAYSCALE)
@@ -36,8 +35,7 @@ def create_stack_dict(path:Path):
         # TODO: this part can be shorten down for sure
         # Getting the key again can't be an effective way
         key = p.name.split("_Z")[0]
-        if key in keys:
-            stack_dict.setdefault(key, []).append(img)
+        stack_dict.setdefault(key, []).append(img)
     for key in stack_dict:
         stack_dict[key] = np.stack(stack_dict[key])
     return stack_dict
