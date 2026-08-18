@@ -35,15 +35,26 @@ def create_app(
 
     # Defining layers outside for global uses
     # Add the layer for the jansonius mapping
-    # NOTE: The jansonius layer is on top of the line drawing layer because the jansonius should, ideally, not be modified by the user
     jansonius_map = viewer.add_points(
         data = [],
         name = "Jansonius mappings",
         face_color = "red",
         size = 7
     )
+    # adding the layers for ohn and fovea points
+    ohn_layer = viewer.add_points(
+        np.empty((0,2)),
+        name = "OHN",
+        size = 10,
+    )
+    fovea_layer = viewer.add_points(
+        np.empty((0,2)),
+        name = "Fovea",
+        size = 10,
+    )
     # Adding the line drawing layer
     # TODO: somehow remove this error regarding add_shapes()
+    # NOTE: lines_layer is on top
     lines_layer = viewer.add_shapes(
         data = [],
         name = "Annotations",
@@ -287,6 +298,44 @@ def create_app(
         jansonius_map.data = scaled_coords
 
         restructure_layers()
+    # Buttons for selecting the features on the OCT scan
+    @magicgui(
+        call_button = "Select ONH",
+        OHN_x = {
+            "widget_type": "SpinBox",
+        },
+        OHN_y = {
+            "widget_type": "SpinBox",
+        },
+    )
+    def select_ohn(OHN_x:int, OHN_y:int):
+        points_layer.mode = "add"
+
+    waiting = False
+
+    @magicgui(
+        call_button="Select fovea",
+        fovea_x={"widget_type": "SpinBox"},
+        fovea_y={"widget_type": "SpinBox"},
+    )
+    def select_fovea(fovea_x: int, fovea_y: int):
+        nonlocal waiting
+
+        waiting = True
+        fovea_layer.data = np.empty((0, 2))
+        viewer.layers.selection.active = fovea_layer
+        fovea_layer.mode = "add"
+
+
+    def on_fovea_change(event):
+        nonlocal waiting
+
+        if waiting and len(fovea_layer.data) == 1:
+            waiting = False
+            viewer.layers.selection.active = lines_layer
+            lines_layer.mode = "add_line"
+
+    fovea_layer.events.data.connect(on_fovea_change)
 
     # Combining the radius widgets for the jansonius mapping
     # FloatSpinBox is used because we are taking the range between the values by steps of 0.1 anyways
@@ -297,7 +346,17 @@ def create_app(
         ],
         layout="horizontal",
     )
-    jansonius_widget.insert(1, jansonius_range)
+    # jansonius_widget.insert(1, jansonius_range)
+    # Combingin widgets for the jansoinus tab
+    jansonius_container = Container(
+        widgets = [
+            select_ohn,
+            select_fovea,
+            jansonius_range,
+            jansonius_widget,
+        ],
+        labels = False
+    )
 
     # Combining the widgets into one container
     io_container = Container(widgets=[save_lines, load_lines, next_stack, prev_stack])
@@ -323,7 +382,7 @@ def create_app(
         area="right",
     )
     viewer.window.add_dock_widget(
-        widget = jansonius_widget,
+        widget = jansonius_container,
         name = "Jansonius map",
         area = "right",
         tabify=True,
