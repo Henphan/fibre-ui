@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from magicgui.widgets import Slider, Container, Label, CheckBox, SpinBox
+from magicgui.widgets import Slider, Container, Label, CheckBox, SpinBox, FloatSpinBox
 import napari
 import numpy as np
 import cv2 as cv
@@ -254,6 +254,11 @@ def create_app(
         lower = jansonius_range[0].value
         upper = jansonius_range[1].value
 
+        # Boundary checking for the inputs
+        # TODO: Use appropriate exception statement here instead of empty return
+        if np.abs(lower-upper) < 0.1:
+            return
+
         r = FloatVector(np.arange(lower, upper, 0.1))
         psi = path(r)
 
@@ -284,10 +289,11 @@ def create_app(
         restructure_layers()
 
     # Combining the radius widgets for the jansonius mapping
+    # FloatSpinBox is used because we are taking the range between the values by steps of 0.1 anyways
     jansonius_range = Container(
         widgets=[
-            SpinBox(value=4, min=4, max=30, label="Min"),
-            SpinBox(value=20, min=4, max=30, label="Max"),
+            FloatSpinBox(value=4, min=4, max=30, label="Min"),
+            FloatSpinBox(value=20, min=4, max=30, label="Max"),
         ],
         layout="horizontal",
     )
