@@ -113,7 +113,7 @@ def create_app(
     # Callback function for going to the next stack of images
     @magicgui(call_button="Next stack")
     def next_stack() -> None:
-        nonlocal i
+        nonlocal i, onh_set, fovea_set
 
         # Bound checking for going to the next stack
         if i + 1 < len(stack_names):
@@ -127,6 +127,14 @@ def create_app(
                 name = stack_names[i],
                 colormap = "gray",
             )
+
+            # Reset the jansonius state
+            onh_set = False
+            fovea_set = False
+            fovea_layer.data = np.empty((0, 2))
+            onh_layer.data = np.empty((0, 2))
+            update_map_button()
+
 
             # Reordering the layers
             restructure_layers()
@@ -148,6 +156,13 @@ def create_app(
                 name = stack_names[i],
                 colormap = "gray",
             )
+
+            # Reset the jansonius state
+            onh_set = False
+            fovea_set = False
+            fovea_layer.data = np.empty((0, 2))
+            onh_layer.data = np.empty((0, 2))
+            update_map_button()
 
             # Reordering the layers
             restructure_layers()
