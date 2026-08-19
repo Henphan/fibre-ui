@@ -155,14 +155,25 @@ def create_app(
     # Function for reordering the layers in a specific order:
         # lines_layer
         # jansonius_map
+        # onh plot
+        # fovea plot
         # image stack
     def restructure_layers():
-        # move the layer for jansonius mapping to the top
+        # move the layer for fovea layer to the top
+        viewer.layers.move(
+            viewer.layers.index(fovea_layer),
+            len(viewer.layers),
+        )
+        # place ohn layer on top of fovea layer
+        viewer.layers.move(
+            viewer.layers.index(onh_layer),
+            len(viewer.layers),
+        )
+        # place jansonius on top of onh layer
         viewer.layers.move(
             viewer.layers.index(jansonius_map),
             len(viewer.layers),
         )
-        # move the layer for lines to the top
         # lines_layer will be on top of jansonius_map
         viewer.layers.move(
             viewer.layers.index(lines_layer),
@@ -292,20 +303,6 @@ def create_app(
         # calculating the scaled coordinates
         rows = x_scale * x + select_fovea.fovea_x.value
         cols = y_scale * y + select_fovea.fovea_y.value
-        # print(rows,cols)
-        #
-        # x_scale = 237 / 15
-        # y_scale = 22 / 2
-        #
-        # fovea_row = 192
-        # fovea_col = 384
-        #
-        # rows = fovea_row - y_scale * y
-        # cols = fovea_col + x_scale * x
-        #
-        # print(rows,cols)
-        #
-        # return
 
         scaled_coords = np.column_stack((cols, rows))
 
