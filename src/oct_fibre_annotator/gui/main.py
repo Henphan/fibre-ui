@@ -266,9 +266,10 @@ def create_app(
         upper = jansonius_range[1].value
 
         # Boundary checking for the inputs
-        # TODO: Use appropriate exception statement here instead of empty return
         if np.abs(lower-upper) < 0.1:
-            return
+            raise ValueError("Invalid values")
+        if upper < lower:
+            raise ValueError("Invalid values")
 
         r = FloatVector(np.arange(lower, upper, 0.1))
         psi = path(r)
@@ -284,16 +285,29 @@ def create_app(
         x = np.asarray(coords.rx2("x"))
         y = np.asarray(coords.rx2("y"))
 
-        x_scale = 237 / 15
-        y_scale = 22 / 2
+        # calculating the scales using selected fovea and onh
+        x_scale = (select_onh.onh_x.value - select_fovea.fovea_x.value) / 15
+        y_scale = (select_onh.onh_y.value - select_fovea.fovea_y.value) / 2
 
-        fovea_row = 192
-        fovea_col = 384
+        # calculating the scaled coordinates
+        rows = x_scale * x + select_fovea.fovea_x.value
+        cols = y_scale * y + select_fovea.fovea_y.value
+        # print(rows,cols)
+        #
+        # x_scale = 237 / 15
+        # y_scale = 22 / 2
+        #
+        # fovea_row = 192
+        # fovea_col = 384
+        #
+        # rows = fovea_row - y_scale * y
+        # cols = fovea_col + x_scale * x
+        #
+        # print(rows,cols)
+        #
+        # return
 
-        rows = fovea_row - y_scale * y
-        cols = fovea_col + x_scale * x
-
-        scaled_coords = np.column_stack((rows, cols))
+        scaled_coords = np.column_stack((cols, rows))
 
         jansonius_map.data = scaled_coords
 
@@ -341,7 +355,7 @@ def create_app(
             viewer.layers.selection.active = lines_layer
             lines_layer.mode = "add_line"
             # changing the values of the SpinBoxes
-            y,x = fovea_layer.data[0]
+            y,x = onh_layer.data[0]
             select_onh.onh_x.value = int(x)
             select_onh.onh_y.value = int(y)
 
