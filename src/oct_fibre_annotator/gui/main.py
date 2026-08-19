@@ -41,16 +41,16 @@ def create_app(
         face_color = "red",
         size = 7
     )
-    # adding the layers for ohn and fovea points
-    ohn_layer = viewer.add_points(
+    # adding the layers for onh and fovea points
+    onh_layer = viewer.add_points(
         np.empty((0,2)),
-        name = "OHN",
-        size = 10,
+        name = "ONH",
+        size = 7,
     )
     fovea_layer = viewer.add_points(
         np.empty((0,2)),
         name = "Fovea",
-        size = 10,
+        size = 7,
     )
     # Adding the line drawing layer
     # TODO: somehow remove this error regarding add_shapes()
@@ -299,19 +299,24 @@ def create_app(
 
         restructure_layers()
     # Buttons for selecting the features on the OCT scan
+    # waiting is a bool value which determines whether the app is waiting for an event from the user
+    waiting = False
+
     @magicgui(
         call_button = "Select ONH",
-        OHN_x = {
-            "widget_type": "SpinBox",
-        },
-        OHN_y = {
-            "widget_type": "SpinBox",
-        },
+        onh_x = {"widget_type": "SpinBox"},
+        onh_y = {"widget_type": "SpinBox"},
     )
-    def select_ohn(OHN_x:int, OHN_y:int):
-        points_layer.mode = "add"
+    def select_onh(onh_x:int, onh_y:int):
+        nonlocal waiting
 
-    waiting = False
+        # Clear the point and then wait for user's input
+        # Order matters a lot due to event being monitored
+        onh_layer.data = np.empty((0, 2))
+        waiting = True
+        viewer.layers.selection.active = onh_layer
+        onh_layer.mode = "add"
+
 
     @magicgui(
         call_button="Select fovea",
@@ -321,11 +326,24 @@ def create_app(
     def select_fovea(fovea_x: int, fovea_y: int):
         nonlocal waiting
 
-        waiting = True
+        # Clear the point and then wait for user's input
+        # Order matters a lot due to event being monitored
         fovea_layer.data = np.empty((0, 2))
+        waiting = True
         viewer.layers.selection.active = fovea_layer
         fovea_layer.mode = "add"
 
+    def on_onh_change(event):
+        nonlocal waiting
+
+        if waiting and len(onh_layer.data) == 1:
+            waiting = False
+            viewer.layers.selection.active = lines_layer
+            lines_layer.mode = "add_line"
+            # changing the values of the SpinBoxes
+            y,x = fovea_layer.data[0]
+            select_onh.onh_x.value = int(x)
+            select_onh.onh_y.value = int(y)
 
     def on_fovea_change(event):
         nonlocal waiting
@@ -334,8 +352,14 @@ def create_app(
             waiting = False
             viewer.layers.selection.active = lines_layer
             lines_layer.mode = "add_line"
+            # changing the values of the SpinBoxes
+            y,x = fovea_layer.data[0]
+            select_fovea.fovea_x.value = int(x)
+            select_fovea.fovea_y.value = int(y)
 
+    # whenever fovea_layer/onh_layer .data changes, run on_fovea_change()
     fovea_layer.events.data.connect(on_fovea_change)
+    onh_layer.events.data.connect(on_onh_change)
 
     # Combining the radius widgets for the jansonius mapping
     # FloatSpinBox is used because we are taking the range between the values by steps of 0.1 anyways
@@ -350,7 +374,7 @@ def create_app(
     # Combingin widgets for the jansoinus tab
     jansonius_container = Container(
         widgets = [
-            select_ohn,
+            select_onh,
             select_fovea,
             jansonius_range,
             jansonius_widget,
