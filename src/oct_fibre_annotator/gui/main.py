@@ -257,6 +257,7 @@ def create_app(
 
     # Buttons for the jansonius mapping
     # FloatSpinBox for the angle of incidence
+
     @magicgui(
         call_button = "Map path",
         psi0 = {
@@ -309,6 +310,10 @@ def create_app(
         jansonius_map.data = scaled_coords
 
         restructure_layers()
+
+    # Disabling the "map path" button initially
+    jansonius_widget.call_button.enabled = False
+
     # Buttons for selecting the features on the OCT scan
     # waiting is a bool value which determines whether the app is waiting for an event from the user
     waiting = False
@@ -344,29 +349,48 @@ def create_app(
         viewer.layers.selection.active = fovea_layer
         fovea_layer.mode = "add"
 
+    # Declaring initial values for fovea_set and onh_set for the button blocking
+    fovea_set = False
+    onh_set = False
+
     def on_onh_change(event):
-        nonlocal waiting
+        nonlocal waiting, onh_set
 
         if waiting and len(onh_layer.data) == 1:
             waiting = False
-            viewer.layers.selection.active = lines_layer
-            lines_layer.mode = "add_line"
+            onh_set = True
+
             # changing the values of the SpinBoxes
             y,x = onh_layer.data[0]
             select_onh.onh_x.value = int(x)
             select_onh.onh_y.value = int(y)
 
+            update_map_button()
+
+            viewer.layers.selection.active = lines_layer
+            lines_layer.mode = "add_line"
+
     def on_fovea_change(event):
-        nonlocal waiting
+        nonlocal waiting, fovea_set
 
         if waiting and len(fovea_layer.data) == 1:
             waiting = False
-            viewer.layers.selection.active = lines_layer
-            lines_layer.mode = "add_line"
+            fovea_set = True
+
             # changing the values of the SpinBoxes
             y,x = fovea_layer.data[0]
             select_fovea.fovea_x.value = int(x)
             select_fovea.fovea_y.value = int(y)
+
+            update_map_button()
+
+            viewer.layers.selection.active = lines_layer
+            lines_layer.mode = "add_line"
+
+    def update_map_button():
+        jansonius_widget.call_button.enabled = fovea_set and onh_set
+
+
 
     # whenever fovea_layer/onh_layer .data changes, run on_fovea_change()
     fovea_layer.events.data.connect(on_fovea_change)
