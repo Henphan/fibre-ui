@@ -133,6 +133,7 @@ def create_app(
             fovea_set = False
             fovea_layer.data = np.empty((0, 2))
             onh_layer.data = np.empty((0, 2))
+            jansonius_map.data = []
             update_map_button()
 
 
@@ -142,7 +143,7 @@ def create_app(
     # Callback function for going to the previous stack of images
     @magicgui(call_button="Previous stack")
     def prev_stack() -> None:
-        nonlocal i
+        nonlocal i, onh_set, fovea_set
 
         # Bound checking for going to the previous stack
         if i - 1 >= 0:
@@ -162,6 +163,7 @@ def create_app(
             fovea_set = False
             fovea_layer.data = np.empty((0, 2))
             onh_layer.data = np.empty((0, 2))
+            jansonius_map.data = []
             update_map_button()
 
             # Reordering the layers
@@ -317,10 +319,10 @@ def create_app(
         y_scale = (select_onh.onh_y.value - select_fovea.fovea_y.value) / 2
 
         # calculating the scaled coordinates
-        rows = x_scale * x + select_fovea.fovea_x.value
-        cols = y_scale * y + select_fovea.fovea_y.value
+        cols = x_scale * x + select_fovea.fovea_x.value
+        rows = y_scale * y + select_fovea.fovea_y.value
 
-        scaled_coords = np.column_stack((cols, rows))
+        scaled_coords = np.column_stack((rows, cols))
 
         jansonius_map.data = scaled_coords
 
