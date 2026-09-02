@@ -39,7 +39,7 @@ def create_app(
         data = [],
         name = "Jansonius mappings",
         face_color = "red",
-        size = 7
+        size = 1
     )
     # adding the layers for onh and fovea points
     onh_layer = viewer.add_points(
@@ -300,6 +300,7 @@ def create_app(
         if upper < lower:
             raise ValueError("Invalid values")
 
+        #NOTE: The step of the mapping is set here
         r = FloatVector(np.arange(lower, upper, 0.1))
         psi = path(r)
 
@@ -417,8 +418,8 @@ def create_app(
     # FloatSpinBox is used because we are taking the range between the values by steps of 0.1 anyways
     jansonius_range = Container(
         widgets=[
-            FloatSpinBox(value=4, min=4, max=30, label="Min"),
-            FloatSpinBox(value=20, min=4, max=30, label="Max"),
+            FloatSpinBox(value=4, min=4, max=40, label="Min"),
+            FloatSpinBox(value=20, min=4, max=40, label="Max"),
         ],
         layout="horizontal",
     )
