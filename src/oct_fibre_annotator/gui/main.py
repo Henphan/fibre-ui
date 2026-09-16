@@ -1,22 +1,13 @@
 from pathlib import Path
 
-from magicgui.widgets import Slider, Container, Label, CheckBox, SpinBox, FloatSpinBox
 import napari
 import numpy as np
 from magicgui import magicgui
-from vispy.scene.widgets import widget
-from qtpy.QtWidgets import QListWidget, QAbstractItemView
 
-from rpy2.robjects.packages import importr
-from rpy2.robjects import FloatVector, DataFrame
-
-from oct_fibre_annotator.automated_jansonius import (
-    generate_jansonius_maps,
-    positional_error,
-)
+from oct_fibre_annotator.gui.control_panel import create_control_panel
+from oct_fibre_annotator.gui.jansonius_panel import create_jansonius_panel
 from oct_fibre_annotator.gui.layers import create_layers, restructure_layers
-from oct_fibre_annotator.io.annotations import load_annotations, save_annotations
-from oct_fibre_annotator.processing.preprocessing import preprocess_stack
+from oct_fibre_annotator.gui.preprocessing_panel import create_preprocessing_panel
 
 def create_app(
     stack_dict: dict[str, np.ndarray],
@@ -38,46 +29,10 @@ def create_app(
         viewer, stack_dict[stack_names[i]], stack_names[i]
     )
 
-    # Callback function for the "Save lines" button
-    # Clicking the button will save the coordinates of all lines on the screen
-    # Coordinates will be written to a csv file
-    @magicgui(call_button="Save lines")
-    def save_lines() -> None:
-        nonlocal i
-
-        lines = lines_layer.data
-        colours = lines_layer.edge_color
-
-        # When no line is drawn
-        if len(lines) == 0:
-            print("No lines to save.")
-            return
-
-        output_path = output_dir / Path("{}_lines.csv".format(stack_names[i]))
-        save_annotations(output_path, lines, colours)
-
-    # Callback function for loading the lines
-    # Assumes that the line is saved using the format from above
-    # TODO: Exception for when the file does not exist
-    @magicgui(call_button="Load lines")
-    def load_lines() -> None:
-        nonlocal i
-
-        output_path = output_dir / Path("{}_lines.csv".format(stack_names[i]))
-        lines, colours = load_annotations(output_path)
-
-        lines_layer.data = []
-
-        # Add each of the line with the given colour
-        for line in lines:
-            lines_layer.add(line, shape_type="line")
-        lines_layer.edge_color = colours
-
-
     # Callback function for going to the next stack of images
     @magicgui(call_button="Next stack")
     def next_stack() -> None:
-        nonlocal i, onh_set, fovea_set
+        nonlocal i
 
         # Bound checking for going to the next stack
         if i + 1 < len(stack_names):
@@ -93,12 +48,7 @@ def create_app(
             )
 
             # Reset the jansonius state
-            onh_set = False
-            fovea_set = False
-            fovea_layer.data = np.empty((0, 2))
-            onh_layer.data = np.empty((0, 2))
-            jansonius_map.data = []
-            update_map_button()
+            reset_jansonius()
 
 
             # Reordering the layers
@@ -107,7 +57,7 @@ def create_app(
     # Callback function for going to the previous stack of images
     @magicgui(call_button="Previous stack")
     def prev_stack() -> None:
-        nonlocal i, onh_set, fovea_set
+        nonlocal i
 
         # Bound checking for going to the previous stack
         if i - 1 >= 0:
@@ -123,313 +73,23 @@ def create_app(
             )
 
             # Reset the jansonius state
-            onh_set = False
-            fovea_set = False
-            fovea_layer.data = np.empty((0, 2))
-            onh_layer.data = np.empty((0, 2))
-            jansonius_map.data = []
-            update_map_button()
+            reset_jansonius()
 
             # Reordering the layers
             restructure_layers(viewer, jansonius_map, onh_layer, fovea_layer, lines_layer)
 
-    # GUI for preprocessing
-    @magicgui(
-        threshold = {
-            "widget_type":"Slider",
-            "max":255,
-        },
-        blur = {
-            "widget_type": "SpinBox",
-            "min": 1,
-            "max": 51,
-            "step": 2,
-        },
+    def get_stack_name():
+        return stack_names[i]
+
+    jansonius_container, reset_jansonius = create_jansonius_panel(
+        viewer, jansonius_map, onh_layer, fovea_layer, lines_layer,
     )
-    def preprocessing_widgets(
-        threshold:int,
-        blur:int,
-    ):
-        nonlocal i
-        name = stack_names[i]
-        processed_stack = preprocess_stack(
-            stack_dict[name],
-            [pipeline.item(idx).text() for idx in range(pipeline.count())],
-            threshold,
-            blur,
-            use_blur=use_blur.value,
-            use_threshold=use_threshold.value,
-            use_clahe=use_clahe.value,
-        )
-
-        viewer.layers.remove(viewer.layers[stack_names[i]]) 
-
-        viewer.add_image(
-            processed_stack,
-            name = name,
-            colormap="gray",
-        )
-
-        restructure_layers(viewer, jansonius_map, onh_layer, fovea_layer, lines_layer)
-
-
-    # Defining dividers for the tabs 
-    # TODO: Think of a way to turn these into a reusable function
-    divider1 = Label(value="---------- Preprocessing Options ----------")
-    divider2 = Label(value="---------- Pipeline order ----------")
-
-    # checkbox widgets for the preprocessing tab
-    use_threshold = CheckBox(text="Threshold", value=False)
-    use_blur = CheckBox(text="Blur", value=False)
-    use_clahe = CheckBox(text="CLAHE", value=False)
-
-    #rearrangeable cards for the preprocessing tab
-    pipeline = QListWidget()
-    pipeline.addItems([
-        "Gaussian blur",
-        "Threshold",
-        "CLAHE"
-    ])
-
-    pipeline.setDragDropMode(
-        QAbstractItemView.InternalMove
+    io_container = create_control_panel(
+        lines_layer, output_dir, get_stack_name, next_stack, prev_stack,
     )
-
-    # Buttons for the jansonius mapping
-    # FloatSpinBox for the angle of incidence
-
-    @magicgui(
-        call_button = "Map path",
-        psi0 = {
-            "widget_type": "FloatSpinBox",
-            "min": -180.0,
-            "max": 180.0,
-            "step": 0.1,
-        },
+    preprocessing_container = create_preprocessing_panel(
+        viewer, stack_dict, get_stack_name, jansonius_map, onh_layer, fovea_layer, lines_layer,
     )
-    def jansonius_widget(
-        psi0: float,
-    ):
-        vf = importr("visualFields")
-
-        path = vf.bundlePath(psi0)
-
-        lower = jansonius_range[0].value
-        upper = jansonius_range[1].value
-
-        # Boundary checking for the inputs
-        if np.abs(lower-upper) < 0.1:
-            raise ValueError("Invalid values")
-        if upper < lower:
-            raise ValueError("Invalid values")
-
-        #NOTE: The step of the mapping is set here
-        r = FloatVector(np.arange(lower, upper, 0.1))
-        psi = path(r)
-
-        rpsi = DataFrame({
-            "r":r,
-            "psi":psi,
-        })
-
-        coords = vf.jpolar2cart(rpsi)
-
-        # converting the coords to match the OCT scan
-        x = np.asarray(coords.rx2("x"))
-        y = np.asarray(coords.rx2("y"))
-
-        # calculating the scales using selected fovea and onh
-        x_scale = (select_onh.onh_x.value - select_fovea.fovea_x.value) / 15
-        y_scale = (select_onh.onh_y.value - select_fovea.fovea_y.value) / 2
-
-        # calculating the scaled coordinates
-        cols = x_scale * x + select_fovea.fovea_x.value
-        rows = y_scale * y + select_fovea.fovea_y.value
-
-        scaled_coords = np.column_stack((rows, cols))
-
-        jansonius_map.data = scaled_coords
-
-        restructure_layers(viewer, jansonius_map, onh_layer, fovea_layer, lines_layer)
-
-    # Disabling the "map path" button initially
-    jansonius_widget.call_button.enabled = False
-
-    # Buttons for selecting the features on the OCT scan
-    # waiting is a bool value which determines whether the app is waiting for an event from the user
-    waiting = False
-
-    @magicgui(
-        call_button = "Select ONH",
-        onh_x = {"widget_type": "SpinBox"},
-        onh_y = {"widget_type": "SpinBox"},
-    )
-    def select_onh(onh_x:int, onh_y:int):
-        nonlocal waiting
-
-        # Clear the point and then wait for user's input
-        # Order matters a lot due to event being monitored
-        onh_layer.data = np.empty((0, 2))
-        waiting = True
-        viewer.layers.selection.active = onh_layer
-        onh_layer.mode = "add"
-
-
-    @magicgui(
-        call_button="Select fovea",
-        fovea_x={"widget_type": "SpinBox"},
-        fovea_y={"widget_type": "SpinBox"},
-    )
-    def select_fovea(fovea_x: int, fovea_y: int):
-        nonlocal waiting
-
-        # Clear the point and then wait for user's input
-        # Order matters a lot due to event being monitored
-        fovea_layer.data = np.empty((0, 2))
-        waiting = True
-        viewer.layers.selection.active = fovea_layer
-        fovea_layer.mode = "add"
-
-    # Declaring initial values for fovea_set and onh_set for the button blocking
-    fovea_set = False
-    onh_set = False
-
-    #NOTE: NEW CODE
-    @magicgui(call_button="Predict psi0")
-    def predict_psi0():
-        # Require calibration
-        if not fovea_set or not onh_set:
-            #NOTE: PLACEHOLDER ERROR
-            print("Select the fovea and ONH first.")
-            return
-
-        # Only support one annotation for now
-        if len(lines_layer.data) != 1:
-            #NOTE: PLACEHOLDER ERROR
-            print("Exactly one annotation must be drawn.")
-            return
-
-        # Extract annotation
-        annotation = lines_layer.data[0]
-
-        # Coordinates are stored as (row, col)
-        fovea = (
-            select_fovea.fovea_y.value,
-            select_fovea.fovea_x.value,
-        )
-
-        onh = (
-            select_onh.onh_y.value,
-            select_onh.onh_x.value,
-        )
-
-        # Generate candidate mappings
-        mappings = generate_jansonius_maps(
-            fovea=fovea,
-            onh=onh,
-        )
-
-        # Calculate positional error for every psi0
-        errors = {}
-
-        for psi0, curve in mappings.items():
-            errors[psi0] = positional_error(
-                annotation=annotation,
-                jansonius_curve=curve,
-            )
-
-        # Find three lowest-error candidates
-        candidates = sorted(
-            errors.items(),
-            key=lambda item: item[1],
-        )[:3]
-
-        print("Top psi0 candidates:")
-
-        for psi0, error in candidates:
-            print(f"psi0: {psi0}, positional error: {error:.2f}")   
-
-    def on_onh_change(event):
-        nonlocal waiting, onh_set
-
-        if waiting and len(onh_layer.data) == 1:
-            waiting = False
-            onh_set = True
-
-            # changing the values of the SpinBoxes
-            y,x = onh_layer.data[0]
-            select_onh.onh_x.value = int(x)
-            select_onh.onh_y.value = int(y)
-
-            update_map_button()
-
-            viewer.layers.selection.active = lines_layer
-            lines_layer.mode = "add_line"
-
-    def on_fovea_change(event):
-        nonlocal waiting, fovea_set
-
-        if waiting and len(fovea_layer.data) == 1:
-            waiting = False
-            fovea_set = True
-
-            # changing the values of the SpinBoxes
-            y,x = fovea_layer.data[0]
-            select_fovea.fovea_x.value = int(x)
-            select_fovea.fovea_y.value = int(y)
-
-            update_map_button()
-
-            viewer.layers.selection.active = lines_layer
-            lines_layer.mode = "add_line"
-
-    def update_map_button():
-        jansonius_widget.call_button.enabled = fovea_set and onh_set
-
-
-
-    # whenever fovea_layer/onh_layer .data changes, run on_fovea_change()
-    fovea_layer.events.data.connect(on_fovea_change)
-    onh_layer.events.data.connect(on_onh_change)
-
-    # Combining the radius widgets for the jansonius mapping
-    # FloatSpinBox is used because we are taking the range between the values by steps of 0.1 anyways
-    jansonius_range = Container(
-        widgets=[
-            FloatSpinBox(value=4, min=4, max=40, label="Min"),
-            FloatSpinBox(value=20, min=4, max=40, label="Max"),
-        ],
-        layout="horizontal",
-    )
-    # jansonius_widget.insert(1, jansonius_range)
-    # Combingin widgets for the jansoinus tab
-    jansonius_container = Container(
-        widgets = [
-            select_onh,
-            select_fovea,
-            jansonius_range,
-            jansonius_widget,
-            predict_psi0,
-        ],
-        labels = False
-    )
-
-    # Combining the widgets into one container
-    io_container = Container(widgets=[save_lines, load_lines, next_stack, prev_stack])
-    preprocessing_container = Container(
-        widgets=[
-            preprocessing_widgets,
-            divider1,
-            use_threshold,
-            use_blur,
-            use_clahe,
-            divider2,
-        ]
-    )
-
-    # Adding the pipeline widget to the container
-    # TODO: make it look better
-    preprocessing_container.native.layout().addWidget(pipeline)
 
     # Create a dock for widgets to the right side
     viewer.window.add_dock_widget(
