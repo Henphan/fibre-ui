@@ -1,6 +1,6 @@
 import numpy as np
 from magicgui import magicgui
-from magicgui.widgets import Container, FloatSpinBox
+from magicgui.widgets import Container, FloatSpinBox, TextEdit
 from rpy2.robjects.packages import importr
 from rpy2.robjects import FloatVector, DataFrame
 
@@ -111,9 +111,16 @@ def create_jansonius_panel(viewer, jansonius_map, onh_layer, fovea_layer, lines_
     fovea_set = False
     onh_set = False
 
+    prediction_results = TextEdit(value="", visible=False)
+    prediction_results.read_only = True
+    prediction_results.height = 110
+
     #NOTE: NEW CODE
     @magicgui(call_button="Predict psi0")
     def predict_psi0():
+        prediction_results.visible = False
+        prediction_results.value = ""
+
         # Require calibration
         if not fovea_set or not onh_set:
             #NOTE: PLACEHOLDER ERROR
@@ -161,10 +168,11 @@ def create_jansonius_panel(viewer, jansonius_map, onh_layer, fovea_layer, lines_
             key=lambda item: item[1],
         )[:3]
 
-        print("Top psi0 candidates:")
-
-        for psi0, error in candidates:
-            print(f"psi0: {psi0}, positional error: {error:.2f}")   
+        prediction_results.value = "Top psi0 candidates:\n" + "\n".join(
+            f"psi0: {psi0}, positional error: {error:.2f}"
+            for psi0, error in candidates
+        )
+        prediction_results.visible = True
 
     def on_onh_change(event):
         nonlocal waiting, onh_set
@@ -227,12 +235,15 @@ def create_jansonius_panel(viewer, jansonius_map, onh_layer, fovea_layer, lines_
             jansonius_range,
             jansonius_widget,
             predict_psi0,
+            prediction_results,
         ],
         labels = False
     )
 
     def reset_jansonius():
         nonlocal onh_set, fovea_set
+        prediction_results.visible = False
+        prediction_results.value = ""
         onh_set = False
         fovea_set = False
         fovea_layer.data = np.empty((0, 2))
