@@ -11,6 +11,11 @@ from qtpy.QtWidgets import QListWidget, QAbstractItemView
 from rpy2.robjects.packages import importr
 from rpy2.robjects import FloatVector, DataFrame
 
+from oct_fibre_annotator.automated_jansonius import (
+    generate_jansonius_maps,
+    positional_error,
+)
+
 def create_app(
     stack_dict: dict[str, np.ndarray],
     output_dir: Path = Path("/home/henphan/GitHub/fibre-ui/data/"),
@@ -371,6 +376,61 @@ def create_app(
     fovea_set = False
     onh_set = False
 
+    #NOTE: NEW CODE
+    @magicgui(call_button="Predict psi0")
+    def predict_psi0():
+        # Require calibration
+        if not fovea_set or not onh_set:
+            #NOTE: PLACEHOLDER ERROR
+            print("Select the fovea and ONH first.")
+            return
+
+        # Only support one annotation for now
+        if len(lines_layer.data) != 1:
+            #NOTE: PLACEHOLDER ERROR
+            print("Exactly one annotation must be drawn.")
+            return
+
+        # Extract annotation
+        annotation = lines_layer.data[0]
+
+        # Coordinates are stored as (row, col)
+        fovea = (
+            select_fovea.fovea_y.value,
+            select_fovea.fovea_x.value,
+        )
+
+        onh = (
+            select_onh.onh_y.value,
+            select_onh.onh_x.value,
+        )
+
+        # Generate candidate mappings
+        mappings = generate_jansonius_maps(
+            fovea=fovea,
+            onh=onh,
+        )
+
+        # Calculate positional error for every psi0
+        errors = {}
+
+        for psi0, curve in mappings.items():
+            errors[psi0] = positional_error(
+                annotation=annotation,
+                jansonius_curve=curve,
+            )
+
+        # Find three lowest-error candidates
+        candidates = sorted(
+            errors.items(),
+            key=lambda item: item[1],
+        )[:3]
+
+        print("Top psi0 candidates:")
+
+        for psi0, error in candidates:
+            print(f"psi0: {psi0}, positional error: {error:.2f}")   
+
     def on_onh_change(event):
         nonlocal waiting, onh_set
 
@@ -431,6 +491,7 @@ def create_app(
             select_fovea,
             jansonius_range,
             jansonius_widget,
+            predict_psi0,
         ],
         labels = False
     )

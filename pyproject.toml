@@ -8,5 +8,6 @@ dependencies = [
 	"napari[pyqt6]",
 	"opencv-python",
 	"pandas",
+	"rpy2",
 ]
 
