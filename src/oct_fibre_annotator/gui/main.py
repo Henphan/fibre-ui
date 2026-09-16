@@ -11,6 +11,11 @@ from qtpy.QtWidgets import QListWidget, QAbstractItemView
 from rpy2.robjects.packages import importr
 from rpy2.robjects import FloatVector, DataFrame
 
+from oct_fibre_annotator.automated_jansonius import (
+    generate_jansonius_maps,
+    positional_error,
+)
+
 def create_app(
     stack_dict: dict[str, np.ndarray],
     output_dir: Path = Path("/home/henphan/GitHub/fibre-ui/data/"),
@@ -35,15 +40,26 @@ def create_app(
 
     # Defining layers outside for global uses
     # Add the layer for the jansonius mapping
-    # NOTE: The jansonius layer is on top of the line drawing layer because the jansonius should, ideally, not be modified by the user
     jansonius_map = viewer.add_points(
         data = [],
         name = "Jansonius mappings",
         face_color = "red",
-        size = 7
+        size = 1
+    )
+    # adding the layers for onh and fovea points
+    onh_layer = viewer.add_points(
+        np.empty((0,2)),
+        name = "ONH",
+        size = 7,
+    )
+    fovea_layer = viewer.add_points(
+        np.empty((0,2)),
+        name = "Fovea",
+        size = 7,
     )
     # Adding the line drawing layer
     # TODO: somehow remove this error regarding add_shapes()
+    # NOTE: lines_layer is on top
     lines_layer = viewer.add_shapes(
         data = [],
         name = "Annotations",
@@ -102,7 +118,7 @@ def create_app(
     # Callback function for going to the next stack of images
     @magicgui(call_button="Next stack")
     def next_stack() -> None:
-        nonlocal i
+        nonlocal i, onh_set, fovea_set
 
         # Bound checking for going to the next stack
         if i + 1 < len(stack_names):
@@ -117,13 +133,22 @@ def create_app(
                 colormap = "gray",
             )
 
+            # Reset the jansonius state
+            onh_set = False
+            fovea_set = False
+            fovea_layer.data = np.empty((0, 2))
+            onh_layer.data = np.empty((0, 2))
+            jansonius_map.data = []
+            update_map_button()
+
+
             # Reordering the layers
             restructure_layers()
 
     # Callback function for going to the previous stack of images
     @magicgui(call_button="Previous stack")
     def prev_stack() -> None:
-        nonlocal i
+        nonlocal i, onh_set, fovea_set
 
         # Bound checking for going to the previous stack
         if i - 1 >= 0:
@@ -138,20 +163,39 @@ def create_app(
                 colormap = "gray",
             )
 
+            # Reset the jansonius state
+            onh_set = False
+            fovea_set = False
+            fovea_layer.data = np.empty((0, 2))
+            onh_layer.data = np.empty((0, 2))
+            jansonius_map.data = []
+            update_map_button()
+
             # Reordering the layers
             restructure_layers()
 
     # Function for reordering the layers in a specific order:
         # lines_layer
         # jansonius_map
+        # onh plot
+        # fovea plot
         # image stack
     def restructure_layers():
-        # move the layer for jansonius mapping to the top
+        # move the layer for fovea layer to the top
+        viewer.layers.move(
+            viewer.layers.index(fovea_layer),
+            len(viewer.layers),
+        )
+        # place ohn layer on top of fovea layer
+        viewer.layers.move(
+            viewer.layers.index(onh_layer),
+            len(viewer.layers),
+        )
+        # place jansonius on top of onh layer
         viewer.layers.move(
             viewer.layers.index(jansonius_map),
             len(viewer.layers),
         )
-        # move the layer for lines to the top
         # lines_layer will be on top of jansonius_map
         viewer.layers.move(
             viewer.layers.index(lines_layer),
@@ -235,6 +279,7 @@ def create_app(
 
     # Buttons for the jansonius mapping
     # FloatSpinBox for the angle of incidence
+
     @magicgui(
         call_button = "Map path",
         psi0 = {
@@ -255,10 +300,12 @@ def create_app(
         upper = jansonius_range[1].value
 
         # Boundary checking for the inputs
-        # TODO: Use appropriate exception statement here instead of empty return
         if np.abs(lower-upper) < 0.1:
-            return
+            raise ValueError("Invalid values")
+        if upper < lower:
+            raise ValueError("Invalid values")
 
+        #NOTE: The step of the mapping is set here
         r = FloatVector(np.arange(lower, upper, 0.1))
         psi = path(r)
 
@@ -273,14 +320,13 @@ def create_app(
         x = np.asarray(coords.rx2("x"))
         y = np.asarray(coords.rx2("y"))
 
-        x_scale = 237 / 15
-        y_scale = 22 / 2
+        # calculating the scales using selected fovea and onh
+        x_scale = (select_onh.onh_x.value - select_fovea.fovea_x.value) / 15
+        y_scale = (select_onh.onh_y.value - select_fovea.fovea_y.value) / 2
 
-        fovea_row = 192
-        fovea_col = 384
-
-        rows = fovea_row - y_scale * y
-        cols = fovea_col + x_scale * x
+        # calculating the scaled coordinates
+        cols = x_scale * x + select_fovea.fovea_x.value
+        rows = y_scale * y + select_fovea.fovea_y.value
 
         scaled_coords = np.column_stack((rows, cols))
 
@@ -288,16 +334,167 @@ def create_app(
 
         restructure_layers()
 
+    # Disabling the "map path" button initially
+    jansonius_widget.call_button.enabled = False
+
+    # Buttons for selecting the features on the OCT scan
+    # waiting is a bool value which determines whether the app is waiting for an event from the user
+    waiting = False
+
+    @magicgui(
+        call_button = "Select ONH",
+        onh_x = {"widget_type": "SpinBox"},
+        onh_y = {"widget_type": "SpinBox"},
+    )
+    def select_onh(onh_x:int, onh_y:int):
+        nonlocal waiting
+
+        # Clear the point and then wait for user's input
+        # Order matters a lot due to event being monitored
+        onh_layer.data = np.empty((0, 2))
+        waiting = True
+        viewer.layers.selection.active = onh_layer
+        onh_layer.mode = "add"
+
+
+    @magicgui(
+        call_button="Select fovea",
+        fovea_x={"widget_type": "SpinBox"},
+        fovea_y={"widget_type": "SpinBox"},
+    )
+    def select_fovea(fovea_x: int, fovea_y: int):
+        nonlocal waiting
+
+        # Clear the point and then wait for user's input
+        # Order matters a lot due to event being monitored
+        fovea_layer.data = np.empty((0, 2))
+        waiting = True
+        viewer.layers.selection.active = fovea_layer
+        fovea_layer.mode = "add"
+
+    # Declaring initial values for fovea_set and onh_set for the button blocking
+    fovea_set = False
+    onh_set = False
+
+    #NOTE: NEW CODE
+    @magicgui(call_button="Predict psi0")
+    def predict_psi0():
+        # Require calibration
+        if not fovea_set or not onh_set:
+            #NOTE: PLACEHOLDER ERROR
+            print("Select the fovea and ONH first.")
+            return
+
+        # Only support one annotation for now
+        if len(lines_layer.data) != 1:
+            #NOTE: PLACEHOLDER ERROR
+            print("Exactly one annotation must be drawn.")
+            return
+
+        # Extract annotation
+        annotation = lines_layer.data[0]
+
+        # Coordinates are stored as (row, col)
+        fovea = (
+            select_fovea.fovea_y.value,
+            select_fovea.fovea_x.value,
+        )
+
+        onh = (
+            select_onh.onh_y.value,
+            select_onh.onh_x.value,
+        )
+
+        # Generate candidate mappings
+        mappings = generate_jansonius_maps(
+            fovea=fovea,
+            onh=onh,
+        )
+
+        # Calculate positional error for every psi0
+        errors = {}
+
+        for psi0, curve in mappings.items():
+            errors[psi0] = positional_error(
+                annotation=annotation,
+                jansonius_curve=curve,
+            )
+
+        # Find three lowest-error candidates
+        candidates = sorted(
+            errors.items(),
+            key=lambda item: item[1],
+        )[:3]
+
+        print("Top psi0 candidates:")
+
+        for psi0, error in candidates:
+            print(f"psi0: {psi0}, positional error: {error:.2f}")   
+
+    def on_onh_change(event):
+        nonlocal waiting, onh_set
+
+        if waiting and len(onh_layer.data) == 1:
+            waiting = False
+            onh_set = True
+
+            # changing the values of the SpinBoxes
+            y,x = onh_layer.data[0]
+            select_onh.onh_x.value = int(x)
+            select_onh.onh_y.value = int(y)
+
+            update_map_button()
+
+            viewer.layers.selection.active = lines_layer
+            lines_layer.mode = "add_line"
+
+    def on_fovea_change(event):
+        nonlocal waiting, fovea_set
+
+        if waiting and len(fovea_layer.data) == 1:
+            waiting = False
+            fovea_set = True
+
+            # changing the values of the SpinBoxes
+            y,x = fovea_layer.data[0]
+            select_fovea.fovea_x.value = int(x)
+            select_fovea.fovea_y.value = int(y)
+
+            update_map_button()
+
+            viewer.layers.selection.active = lines_layer
+            lines_layer.mode = "add_line"
+
+    def update_map_button():
+        jansonius_widget.call_button.enabled = fovea_set and onh_set
+
+
+
+    # whenever fovea_layer/onh_layer .data changes, run on_fovea_change()
+    fovea_layer.events.data.connect(on_fovea_change)
+    onh_layer.events.data.connect(on_onh_change)
+
     # Combining the radius widgets for the jansonius mapping
     # FloatSpinBox is used because we are taking the range between the values by steps of 0.1 anyways
     jansonius_range = Container(
         widgets=[
-            FloatSpinBox(value=4, min=4, max=30, label="Min"),
-            FloatSpinBox(value=20, min=4, max=30, label="Max"),
+            FloatSpinBox(value=4, min=4, max=40, label="Min"),
+            FloatSpinBox(value=20, min=4, max=40, label="Max"),
         ],
         layout="horizontal",
     )
-    jansonius_widget.insert(1, jansonius_range)
+    # jansonius_widget.insert(1, jansonius_range)
+    # Combingin widgets for the jansoinus tab
+    jansonius_container = Container(
+        widgets = [
+            select_onh,
+            select_fovea,
+            jansonius_range,
+            jansonius_widget,
+            predict_psi0,
+        ],
+        labels = False
+    )
 
     # Combining the widgets into one container
     io_container = Container(widgets=[save_lines, load_lines, next_stack, prev_stack])
@@ -323,7 +520,7 @@ def create_app(
         area="right",
     )
     viewer.window.add_dock_widget(
-        widget = jansonius_widget,
+        widget = jansonius_container,
         name = "Jansonius map",
         area = "right",
         tabify=True,
