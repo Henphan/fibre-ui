@@ -3,7 +3,6 @@ from pathlib import Path
 from magicgui.widgets import Slider, Container, Label, CheckBox, SpinBox, FloatSpinBox
 import napari
 import numpy as np
-import cv2 as cv
 from magicgui import magicgui
 from vispy.scene.widgets import widget
 from qtpy.QtWidgets import QListWidget, QAbstractItemView
@@ -16,6 +15,7 @@ from oct_fibre_annotator.automated_jansonius import (
     positional_error,
 )
 from oct_fibre_annotator.io.annotations import load_annotations, save_annotations
+from oct_fibre_annotator.processing.preprocessing import preprocess_stack
 
 def create_app(
     stack_dict: dict[str, np.ndarray],
@@ -213,26 +213,15 @@ def create_app(
     ):
         nonlocal i
         name = stack_names[i]
-        processed_stack = stack_dict[name]
-
-        for idx in range(pipeline.count()):
-            process_name = pipeline.item(idx).text()
-
-            if process_name == "Gaussian blur" and use_blur.value:
-                processed_stack = np.stack([
-                    cv.GaussianBlur(slice_, (blur,blur), 0)
-                    for slice_ in processed_stack
-                ])
-
-            if process_name == "Threshold" and use_threshold.value:
-                processed_stack = (processed_stack > threshold).astype(np.uint8) * 255
-
-            if process_name == "CLAHE" and use_clahe.value:
-                clahe = cv.createCLAHE(clipLimit=5)
-                processed_stack = np.stack([
-                    clahe.apply(slice_)
-                    for slice_ in processed_stack
-                ])
+        processed_stack = preprocess_stack(
+            stack_dict[name],
+            [pipeline.item(idx).text() for idx in range(pipeline.count())],
+            threshold,
+            blur,
+            use_blur=use_blur.value,
+            use_threshold=use_threshold.value,
+            use_clahe=use_clahe.value,
+        )
 
         viewer.layers.remove(viewer.layers[stack_names[i]]) 
 
@@ -557,7 +546,6 @@ if __name__ == "__main__":
     coordinates = np.column_stack((x, y))
 
     new_coord = lambda x, y: (384+(237/15)*x, 192+(22/2)*y)
-
 
 
 
