@@ -2,11 +2,11 @@ from pathlib import Path
 
 import napari
 import numpy as np
-from magicgui import magicgui
 
 from oct_fibre_annotator.gui.control_panel import create_control_panel
 from oct_fibre_annotator.gui.jansonius_panel import create_jansonius_panel
-from oct_fibre_annotator.gui.layers import create_layers, restructure_layers
+from oct_fibre_annotator.gui.layers import create_layers
+from oct_fibre_annotator.gui.navigation import create_navigation
 from oct_fibre_annotator.gui.preprocessing_panel import create_preprocessing_panel
 
 def create_app(
@@ -24,65 +24,16 @@ def create_app(
 
     # Add the first stack of OCT scans into the application as a layer
     stack_names = list(stack_dict.keys())
-    i = 0
     jansonius_map, onh_layer, fovea_layer, lines_layer = create_layers(
-        viewer, stack_dict[stack_names[i]], stack_names[i]
+        viewer, stack_dict[stack_names[0]], stack_names[0]
     )
-
-    # Callback function for going to the next stack of images
-    @magicgui(call_button="Next stack")
-    def next_stack() -> None:
-        nonlocal i
-
-        # Bound checking for going to the next stack
-        if i + 1 < len(stack_names):
-            viewer.layers.remove(viewer.layers[stack_names[i]]) 
-
-            i += 1
-
-            # Add the new stack
-            viewer.add_image(
-                stack_dict[stack_names[i]],
-                name = stack_names[i],
-                colormap = "gray",
-            )
-
-            # Reset the jansonius state
-            reset_jansonius()
-
-
-            # Reordering the layers
-            restructure_layers(viewer, jansonius_map, onh_layer, fovea_layer, lines_layer)
-
-    # Callback function for going to the previous stack of images
-    @magicgui(call_button="Previous stack")
-    def prev_stack() -> None:
-        nonlocal i
-
-        # Bound checking for going to the previous stack
-        if i - 1 >= 0:
-            viewer.layers.remove(viewer.layers[stack_names[i]]) 
-
-            i -= 1
-
-            # Add the new stack
-            viewer.add_image(
-                stack_dict[stack_names[i]],
-                name = stack_names[i],
-                colormap = "gray",
-            )
-
-            # Reset the jansonius state
-            reset_jansonius()
-
-            # Reordering the layers
-            restructure_layers(viewer, jansonius_map, onh_layer, fovea_layer, lines_layer)
-
-    def get_stack_name():
-        return stack_names[i]
 
     jansonius_container, reset_jansonius = create_jansonius_panel(
         viewer, jansonius_map, onh_layer, fovea_layer, lines_layer,
+    )
+    next_stack, prev_stack, get_stack_name = create_navigation(
+        viewer, stack_dict, stack_names, jansonius_map, onh_layer, fovea_layer,
+        lines_layer, reset_jansonius,
     )
     io_container = create_control_panel(
         lines_layer, output_dir, get_stack_name, next_stack, prev_stack,
