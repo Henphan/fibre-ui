@@ -15,6 +15,7 @@ from oct_fibre_annotator.automated_jansonius import (
     generate_jansonius_maps,
     positional_error,
 )
+from oct_fibre_annotator.io.annotations import load_annotations, save_annotations
 
 def create_app(
     stack_dict: dict[str, np.ndarray],
@@ -84,16 +85,7 @@ def create_app(
             return
 
         output_path = output_dir / Path("{}_lines.csv".format(stack_names[i]))
-        output_path.parent.mkdir(parents=True, exist_ok = True)
-
-        # Write the coordinates of each line down into an image specific .csv
-        with open(output_path, "w") as f:
-            f.write("r,g,b,y1,x1,y2,x2\n")
-            # NOTE: what is zip?
-            for line, colour in zip(lines, colours):
-                start, end = line
-                r,g,b,a = colour
-                f.write("{},{},{},{},{},{},{},{}\n".format(r,g,b,a,start[0], start[1], end[0], end[1]))
+        save_annotations(output_path, lines, colours)
 
     # Callback function for loading the lines
     # Assumes that the line is saved using the format from above
@@ -103,9 +95,7 @@ def create_app(
         nonlocal i
 
         output_path = output_dir / Path("{}_lines.csv".format(stack_names[i]))
-        data = np.loadtxt(output_path, delimiter=",", skiprows=1)
-        lines = data[:,4:8].reshape(-1,2,2)
-        colours = data[:,:4]
+        lines, colours = load_annotations(output_path)
 
         lines_layer.data = []
 
