@@ -14,6 +14,7 @@ from oct_fibre_annotator.automated_jansonius import (
     generate_jansonius_maps,
     positional_error,
 )
+from oct_fibre_annotator.gui.layers import create_layers, restructure_layers
 from oct_fibre_annotator.io.annotations import load_annotations, save_annotations
 from oct_fibre_annotator.processing.preprocessing import preprocess_stack
 
@@ -33,41 +34,9 @@ def create_app(
     # Add the first stack of OCT scans into the application as a layer
     stack_names = list(stack_dict.keys())
     i = 0
-    viewer.add_image(
-        stack_dict[stack_names[i]],
-        name = stack_names[i],
-        colormap = "gray",
+    jansonius_map, onh_layer, fovea_layer, lines_layer = create_layers(
+        viewer, stack_dict[stack_names[i]], stack_names[i]
     )
-
-    # Defining layers outside for global uses
-    # Add the layer for the jansonius mapping
-    jansonius_map = viewer.add_points(
-        data = [],
-        name = "Jansonius mappings",
-        face_color = "red",
-        size = 1
-    )
-    # adding the layers for onh and fovea points
-    onh_layer = viewer.add_points(
-        np.empty((0,2)),
-        name = "ONH",
-        size = 7,
-    )
-    fovea_layer = viewer.add_points(
-        np.empty((0,2)),
-        name = "Fovea",
-        size = 7,
-    )
-    # Adding the line drawing layer
-    # TODO: somehow remove this error regarding add_shapes()
-    # NOTE: lines_layer is on top
-    lines_layer = viewer.add_shapes(
-        data = [],
-        name = "Annotations",
-        edge_color = "red",
-    )
-    # Auto-selecting the 'add line' feature for the user
-    lines_layer.mode = "add_line"
 
     # Callback function for the "Save lines" button
     # Clicking the button will save the coordinates of all lines on the screen
@@ -133,7 +102,7 @@ def create_app(
 
 
             # Reordering the layers
-            restructure_layers()
+            restructure_layers(viewer, jansonius_map, onh_layer, fovea_layer, lines_layer)
 
     # Callback function for going to the previous stack of images
     @magicgui(call_button="Previous stack")
@@ -162,37 +131,7 @@ def create_app(
             update_map_button()
 
             # Reordering the layers
-            restructure_layers()
-
-    # Function for reordering the layers in a specific order:
-        # lines_layer
-        # jansonius_map
-        # onh plot
-        # fovea plot
-        # image stack
-    def restructure_layers():
-        # move the layer for fovea layer to the top
-        viewer.layers.move(
-            viewer.layers.index(fovea_layer),
-            len(viewer.layers),
-        )
-        # place ohn layer on top of fovea layer
-        viewer.layers.move(
-            viewer.layers.index(onh_layer),
-            len(viewer.layers),
-        )
-        # place jansonius on top of onh layer
-        viewer.layers.move(
-            viewer.layers.index(jansonius_map),
-            len(viewer.layers),
-        )
-        # lines_layer will be on top of jansonius_map
-        viewer.layers.move(
-            viewer.layers.index(lines_layer),
-            len(viewer.layers),
-        )
-        # ensure that the lines_layer is selected
-        viewer.layers.selection.active = lines_layer
+            restructure_layers(viewer, jansonius_map, onh_layer, fovea_layer, lines_layer)
 
     # GUI for preprocessing
     @magicgui(
@@ -231,7 +170,7 @@ def create_app(
             colormap="gray",
         )
 
-        restructure_layers()
+        restructure_layers(viewer, jansonius_map, onh_layer, fovea_layer, lines_layer)
 
 
     # Defining dividers for the tabs 
@@ -311,7 +250,7 @@ def create_app(
 
         jansonius_map.data = scaled_coords
 
-        restructure_layers()
+        restructure_layers(viewer, jansonius_map, onh_layer, fovea_layer, lines_layer)
 
     # Disabling the "map path" button initially
     jansonius_widget.call_button.enabled = False
