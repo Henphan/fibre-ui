@@ -41,7 +41,7 @@ def create_jansonius_panel(viewer, jansonius_map, onh_layer, fovea_layer, lines_
             raise ValueError("Invalid values")
 
         #NOTE: The step of the mapping is set here
-        r = FloatVector(np.arange(lower, upper, 0.1))
+        r = FloatVector(np.arange(lower, upper, 0.05))
         psi = path(r)
 
         rpsi = DataFrame({
@@ -78,8 +78,8 @@ def create_jansonius_panel(viewer, jansonius_map, onh_layer, fovea_layer, lines_
 
     @magicgui(
         call_button = "Select ONH",
-        onh_x = {"widget_type": "SpinBox"},
-        onh_y = {"widget_type": "SpinBox"},
+        onh_x={"widget_type": "SpinBox", "min": 0, "max": 2000},
+        onh_y={"widget_type": "SpinBox", "min": 0, "max": 2000},
     )
     def select_onh(onh_x:int, onh_y:int):
         nonlocal waiting
@@ -94,8 +94,8 @@ def create_jansonius_panel(viewer, jansonius_map, onh_layer, fovea_layer, lines_
 
     @magicgui(
         call_button="Select fovea",
-        fovea_x={"widget_type": "SpinBox"},
-        fovea_y={"widget_type": "SpinBox"},
+        fovea_x={"widget_type": "SpinBox", "min": 0, "max": 2000},
+        fovea_y={"widget_type": "SpinBox", "min": 0, "max": 2000},
     )
     def select_fovea(fovea_x: int, fovea_y: int):
         nonlocal waiting
