@@ -1,6 +1,6 @@
 # NPSC2001 | Phase 3 | OCT Fibre Annotator
 ## A semi-automated approach to determining retinal nerve fibre trajectories in retinal data
-This repository contains a Napari application that serves as a platform to aid users in mapping and identifying retinal nerve fibres without the temporal constraints of traditional image processing.
+This repository contains a Napari application that serves as a platform to aid users in mapping and identifying retinal nerve fibres without the constraints of traditional image processing. This reseearch prototype was developed as part of NPSC2001 research work under the supervision of Dr Andrew Turpin. 
 ## Current functionality:
 - Load and navigate OCT image stacks in a Napari viewer.
 - Draw line annotations over the images and save/load them as CSV files.
