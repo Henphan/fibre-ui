@@ -8,9 +8,9 @@ scans and fitting Jansonius model curves to them. NPSC2001 university project, s
 ## Commands
 
 ```bash
-python -m pip install -e . && python -m pip install shapely   # shapely is not in pyproject.toml
-python -m oct_fibre_annotator                                 # launch
-python3 -m compileall -q src/oct_fibre_annotator              # only verification step
+python -m pip install -e .                         # install
+python -m oct_fibre_annotator                      # launch
+python3 -m compileall -q src/oct_fibre_annotator   # only verification step
 ```
 
 No tests, linter, CI or lockfile.
