@@ -4,8 +4,8 @@ from oct_fibre_annotator.gui.main import create_app
 import napari
 def main():
     # DATA_PATH = Path("/mnt/c/Users/vyblo/Downloads/full_dataset/")
-    DATA_PATH = Path("/Users/henphan/Desktop/UNI/Y2/Y2S2/OmnissaHorizonSharing/partial_data/")
-    OUT_PATH = Path("/Users/henphan/Documents/GitHub/fibre-ui/data/")
+    DATA_PATH = Path("/Users/henryphan/Documents/GitHub/fibre-ui/data/sample")
+    OUT_PATH = Path("/Users/henryphan/Documents/GitHub/fibre-ui/data/output")
     
     print("OCT Annotator App")
     stack_dict = create_stack_dict(DATA_PATH)
