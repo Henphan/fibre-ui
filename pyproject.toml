@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "oct-fibre-annotator"
 version = "0.1.0"
@@ -6,8 +10,11 @@ requires-python = ">=3.12, <3.15"
 dependencies = [
 	"numpy",
 	"napari[pyqt6]",
+	"magicgui",
+	"qtpy",
 	"opencv-python",
 	"pandas",
 	"rpy2",
+	"shapely",
 ]
 

@@ -8,13 +8,23 @@ This repository contains a Napari application that serves as a platform to aid u
 - Select the optic nerve head (ONH) and fovea to calibrate Jansonius curves to image coordinates.
 - Display a Jansonius model trajectory for a selected initial angle (`psi0`).
 - Compare **one** annotated line with modelled trajectories and display the three candidates with the lowest mean positional error.
-## Requirements and installation
-- Python **3.12–3.14**, as specified in `pyproject.toml`.
+## Requirements
+- Python **3.12–3.14**, as specified in `pyproject.toml` (tested on 3.12).
 - A desktop environment capable of running Napari's Qt interface.
-- Python dependencies declared in `pyproject.toml`: `numpy`, `napari[pyqt6]`, `opencv-python`, `pandas` and `rpy2`.
-- **Shapely**, also required by `automated_jansonius.py` but not yet declared in `pyproject.toml`.
-- A working **R installation** with the R package **`visualFields`** available to `rpy2`.
+- **R**, installed and on your `PATH`. The app does not start without R: the Jansonius panel imports `rpy2`, which loads R at start-up.
+- The R package **`visualFields`**.
+- The Python dependencies, which are declared in `pyproject.toml` and installed by `pip` in step 2.
 ## How do I run the app?
+### 1. Install R and `visualFields`
+Install R from [CRAN](https://cran.r-project.org/) (or on macOS with Homebrew: `brew install r`). Check that it is on your `PATH`:
+```bash
+R --version
+```
+Then install `visualFields`:
+```bash
+Rscript -e 'install.packages("visualFields", repos = "https://cloud.r-project.org")'
+```
+### 2. Install the application
 From a terminal:
 ```bash
 git clone https://github.com/Henphan/fibre-ui.git
@@ -24,15 +34,42 @@ python -m venv .venv
 source .venv/bin/activate
 
 python -m pip install -e .
-python -m pip install shapely
 ```
-In R, install the required package if it is not already available:
+To check that `rpy2` can find R, run `python -m rpy2.situation`. If it reports that `R_HOME` is not set (or the app fails with `r_home is None`), set it before running the app:
+```bash
+export R_HOME=$(R RHOME)
+```
+With some R installs (for example Homebrew's), start-up prints `Error importing in API mode ... Trying to import in ABI mode`. This is harmless: `rpy2` falls back to ABI mode and the app works normally.
+### 3. Configure the data and output paths
+The paths are hardcoded. Before running the app, edit these two lines in `src/oct_fibre_annotator/main.py`:
+```python
+DATA_PATH = Path("/path/to/your/oct_slices/")   # folder of OCT slices to load
+OUT_PATH = Path("/path/to/fibre-ui/data/")      # where <stack>_lines.csv files are written
+```
+- `DATA_PATH` must contain **only** slice files in the format described in [Expected input data](#expected-input-data). Any other file breaks loading, and so does an empty folder. On macOS this includes `.DS_Store`, so remove it with `rm /path/to/your/oct_slices/.DS_Store`.
+- `OUT_PATH` is created automatically the first time you save lines. `data/` inside the repository is gitignored, so it is a safe choice.
+### 4. (Optional) Generate sample data for a smoke test
+The OCT dataset is not distributed with this repository. To check that the app starts without it, run the following in the activated environment from the project root. It writes two stacks of three random grayscale slices to `data/sample/`:
+```bash
+python - <<'PY'
+from pathlib import Path
+import cv2 as cv
+import numpy as np
 
-```r
-install.packages("visualFields")
+out = Path("data/sample")
+out.mkdir(parents=True, exist_ok=True)
+rng = np.random.default_rng(0)
+for stack in ["DEMO01", "DEMO02"]:
+    for z in range(3):
+        img = rng.integers(0, 256, size=(256, 512), dtype=np.uint8)
+        cv.imwrite(str(out / f"{stack}_Z{z}.tif.png"), img)
+print(sorted(p.name for p in out.iterdir()))
+PY
 ```
-Run from the project root:
-```
+Then set `DATA_PATH` to the absolute path of `data/sample/` in step 3.
+### 5. Run
+From the project root, with the environment activated:
+```bash
 python -m oct_fibre_annotator
 ```
 ## Expected input data
@@ -80,6 +117,6 @@ src/oct_fibre_annotator/
 The **Save lines** action writes files named `<stack_name>_lines.csv` to `OUT_PATH`, with RGBA edge colour and two endpoints per annotation. The current writer emits **eight data values** (`r,g,b,a,y1,x1,y2,x2`) but its header contains only **seven names** (`r,g,b,y1,x1,y2,x2`). This inconsistency should be corrected before using the CSV format with other software. The loader indexes eight columns and may also fail for a file containing only one data row because `numpy.loadtxt` returns a one-dimensional array in that case.
 ## Known limitations and handover priorities
 
-1. **Dependency management:** add `shapely` to `pyproject.toml`, document/version-lock a tested Python–R environment and verify a clean install on another machine.
+1. **Dependency management:** version-lock a tested Python–R environment and verify a clean install on another machine.
 2. **Portability:** remove hardcoded paths from `main.py` in favour of configuration, environment variables or a file chooser.
 3. **Prediction model:** The current scoring uses the average distance between sampled points on one straight annotation and each candidate Jansonius curve. It does not use line direction, model confidence or multiple annotations. Validate the anatomical mapping and scaling assumptions before interpreting the ranked candidates.
