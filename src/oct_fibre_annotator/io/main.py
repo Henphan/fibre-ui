@@ -3,11 +3,14 @@ import numpy as np
 from pathlib import Path
 
 # Input:
-#   OCT slices with the structure of WF**_W_****_***.tiff.png
-#   1165 slices belonging to 24 patients
+#   A folder containing image files and/or subfolders
+#   A file is loaded as a single image, named after the file without its extension (img1.png -> img1)
+#   A subfolder is loaded as a stack, named after the folder
+#   Slices inside a subfolder are named by their number (1.png, 2.png, ...)
 # Output:
 #   A dictionary of numpy stacks containing the images
 #   The stack with the dimension of (number_of_slices, height, width)
+#   A single image is a stack with one slice
 #   The slices are stored in ascending order
 
 # Takes in a path to the dataset
@@ -21,23 +24,30 @@ def create_keys(path:Path) -> list[str]:
             keys.append(key)
     return keys
 
+# Takes in a path to an image
+# Returns the image as a grayscale numpy array
+def read_image(path:Path):
+    img = cv.imread(str(path), cv.IMREAD_GRAYSCALE)
+    if img is None:
+        raise Exception
+    return img
+
 # Takes in a path to the dataset
 # Reteurns a dictionary of numpy stacks
-# TODO: shorten the function so that it only iterates over the path once
 # TODO: add the return type for the dictionary
 def create_stack_dict(path:Path):
     stack_dict = dict()
-    paths = sorted(path.iterdir(), key = lambda path: int(path.stem.split("_Z")[1].split(".tif")[0]))
-    for p in paths:
-        img = cv.imread(str(p), cv.IMREAD_GRAYSCALE)
-        if img is None:
+    for p in sorted(path.iterdir()):
+        # folders keep their full name, files drop their extension (image2.jpg -> image2)
+        key = p.name if p.is_dir() else p.name.split(".")[0]
+        if key in stack_dict:
             raise Exception
-        # TODO: this part can be shorten down for sure
-        # Getting the key again can't be an effective way
-        key = p.name.split("_Z")[0]
-        stack_dict.setdefault(key, []).append(img)
-    for key in stack_dict:
-        stack_dict[key] = np.stack(stack_dict[key])
+        if p.is_dir():
+            # slices are named by their number, e.g. 1.png, 2.png
+            slice_paths = sorted(p.iterdir(), key = lambda s: int(s.name.split(".")[0]))
+            stack_dict[key] = np.stack([read_image(s) for s in slice_paths])
+        else:
+            stack_dict[key] = np.stack([read_image(p)])
     return stack_dict
 
 
