@@ -24,6 +24,11 @@ def create_app(
 
     # Add the first stack of OCT scans into the application as a layer
     stack_names = list(stack_dict.keys())
+
+    # Image names must not match the other layers' names (see create_layers)
+    # napari would rename one of them and the lookup by name would remove the wrong layer
+    if set(stack_names) & {"Jansonius mappings", "ONH", "Fovea", "Annotations"}:
+        raise Exception
     jansonius_map, onh_layer, fovea_layer, lines_layer = create_layers(
         viewer, stack_dict[stack_names[0]], stack_names[0]
     )
