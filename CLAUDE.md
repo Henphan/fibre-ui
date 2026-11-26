@@ -20,8 +20,8 @@ No tests, linter, CI or lockfile.
 - `main.py` hardcodes `DATA_PATH` and `OUT_PATH` to the developer's machine. Edit them in place to
   run; do not turn them into CLI args or config unless asked. `OUT_PATH` points into `data/`
   (gitignored, as are all `*.csv`).
-- `DATA_PATH` must contain only `*_Z<n>.tif.png` slices; any other file (e.g. `.DS_Store`) breaks the
-  slice sort in `io/main.py`.
+- `DATA_PATH` holds image files (each loaded as a 1-slice stack) and stack folders of numbered slices
+  (`1.png`, `2.png`, …). Anything else (e.g. `.DS_Store`) crashes `io/main.py` by design.
 - Jansonius features need system **R** with the **`visualFields`** package (called via rpy2).
 
 ## Architecture rules

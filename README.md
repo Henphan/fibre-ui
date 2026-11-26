@@ -43,13 +43,13 @@ With some R installs (for example Homebrew's), start-up prints `Error importing 
 ### 3. Configure the data and output paths
 The paths are hardcoded. Before running the app, edit these two lines in `src/oct_fibre_annotator/main.py`:
 ```python
-DATA_PATH = Path("/path/to/your/oct_slices/")   # folder of OCT slices to load
+DATA_PATH = Path("/path/to/your/oct_images/")   # folder of OCT images and stacks to load
 OUT_PATH = Path("/path/to/fibre-ui/data/")      # where <stack>_lines.csv files are written
 ```
-- `DATA_PATH` must contain **only** slice files in the format described in [Expected input data](#expected-input-data). Any other file breaks loading, and so does an empty folder. On macOS this includes `.DS_Store`, so remove it with `rm /path/to/your/oct_slices/.DS_Store`.
+- `DATA_PATH` must contain **only** images and stack folders in the format described in [Expected input data](#expected-input-data). Any other file breaks loading, and so does an empty folder. On macOS this includes `.DS_Store`, so remove it with `rm /path/to/your/oct_images/.DS_Store` (and from inside each stack folder).
 - `OUT_PATH` is created automatically the first time you save lines. `data/` inside the repository is gitignored, so it is a safe choice.
 ### 4. (Optional) Generate sample data for a smoke test
-The OCT dataset is not distributed with this repository. To check that the app starts without it, run the following in the activated environment from the project root. It writes two stacks of three random grayscale slices to `data/sample/`:
+The OCT dataset is not distributed with this repository. To check that the app starts without it, run the following in the activated environment from the project root. It writes two stacks of three random grayscale slices and one single random image to `data/sample/`:
 ```bash
 python - <<'PY'
 from pathlib import Path
@@ -57,13 +57,15 @@ import cv2 as cv
 import numpy as np
 
 out = Path("data/sample")
-out.mkdir(parents=True, exist_ok=True)
 rng = np.random.default_rng(0)
 for stack in ["DEMO01", "DEMO02"]:
-    for z in range(3):
+    (out / stack).mkdir(parents=True, exist_ok=True)
+    for n in range(1, 4):
         img = rng.integers(0, 256, size=(256, 512), dtype=np.uint8)
-        cv.imwrite(str(out / f"{stack}_Z{z}.tif.png"), img)
-print(sorted(p.name for p in out.iterdir()))
+        cv.imwrite(str(out / stack / f"{n}.png"), img)
+img = rng.integers(0, 256, size=(256, 512), dtype=np.uint8)
+cv.imwrite(str(out / "DEMO03.png"), img)
+print(sorted(str(p.relative_to(out)) for p in out.rglob("*")))
 PY
 ```
 Then set `DATA_PATH` to the absolute path of `data/sample/` in step 3.
@@ -73,11 +75,25 @@ From the project root, with the environment activated:
 python -m oct_fibre_annotator
 ```
 ## Expected input data
-With the current implementation, the loader in `src/oct_fibre_annotator/io/main.py` expects a **very specific** data format. Specifically, a flat directory of grayscale-readable OCT slices with filenames containing `_Z` followed by an integer slice index, for example:
+The loader in `src/oct_fibre_annotator/io/main.py` reads each entry directly inside `DATA_PATH`:
+- A **file** is loaded as a single image, named after the filename up to its first dot (`image2.jpg` → `image2`).
+- A **folder** is loaded as a stack named after the folder. Its slices must be images named by their number (`1.png`, `2.png`, …) and are ordered by that number. All slices in a stack must be the same size.
+
+For example:
 ```text
-WF01_W_0001_Z0.tif.png
-WF01_W_0001_Z1.tif.png
-WF01_W_0001_Z2.tif.png
+oct_images/
+├── image1.png        → image1 (single image)
+└── WF01_W_0001/      → WF01_W_0001 (stack of 3 slices)
+    ├── 1.png
+    ├── 2.png
+    └── 3.png
+```
+Images are read as grayscale. Names must be unique, so `image1.png` and a folder `image1/` cannot coexist, and must not be `ONH`, `Fovea`, `Annotations` or `Jansonius mappings` (the app's other layers). Anything else in `DATA_PATH` or a stack folder (non-image files, nested folders, non-numeric slice names, empty folders) stops the app at start-up.
+
+Older datasets used a flat folder of `<stack>_Z<n>.tif.png` slices. To convert one, move each slice into a folder named after its stack, keeping only the number, e.g. `WF01_W_0001_Z0.tif.png` → `WF01_W_0001/0.tif.png`. The stack keeps its name, so existing `<stack>_lines.csv` annotations still load:
+```bash
+cd /path/to/your/oct_images
+for f in *_Z*.tif.png; do s="${f%_Z*}"; n="${f##*_Z}"; mkdir -p "$s"; mv "$f" "$s/$n"; done
 ```
 ## Using the application
 1. Launch the app and navigate through the loaded OCT stacks with **Next stack** and **Previous stack** in **Control panel**. Navigate through slices within a stack through the built-in Napari's slider.
