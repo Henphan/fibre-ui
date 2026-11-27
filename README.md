@@ -99,7 +99,7 @@ for f in *_Z*.tif.png; do s="${f%_Z*}"; n="${f##*_Z}"; mkdir -p "$s"; mv "$f" "$
 1. Launch the app and navigate through the loaded OCT stacks with **Next stack** and **Previous stack** in **Control panel**. Navigate through slices within a stack through the built-in Napari's slider.
 2. With the **Annotations** shapes layer selected, draw line segments along candidate nerve fibre trajectories. Choose **Save lines** or **Load lines** to work with per-stack CSV annotations.
 3. Open **Image preprocessing** to enable Gaussian blur, thresholding or CLAHE. Drag processing steps to change their order and apply the settings using the widget's action. Each application starts from the original stack, rather than the last processed result.
-4. In **Jansonius map**, choose **Select ONH** and click its location in the viewer; repeat with **Select fovea**. Specify the radius bounds and `psi0`, then select **Map path** to visualise a curve.
+4. In **Jansonius map**, choose **Select ONH** and click its location in the viewer; repeat with **Select fovea**. Landmark coordinates are accepted from −100 000 to 100 000 px, so large images such as fundus photographs work and a click just outside the image is recorded as is. Specify the radius bounds and `psi0`, then select **Map path** to visualise a curve.
 5. To try **Predict psi0**, ensure both landmarks are selected and exactly **one** annotation line is present. The widget generates candidate curves for integer angles from `-180` through `179` and displays the three lowest positional-error scores.
 ## Repository layout
 

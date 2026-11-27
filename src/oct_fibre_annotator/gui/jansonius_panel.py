@@ -10,6 +10,11 @@ from oct_fibre_annotator.automated_jansonius import (
 )
 from oct_fibre_annotator.gui.layers import restructure_layers
 
+# Bounds for the ONH and fovea SpinBoxes
+# Without them magicgui limits a SpinBox to 0-999 and clicks on larger images (e.g. fundus) raise
+# Clicks outside the image (negative or past the edge) are accepted as they are, up to the limit
+COORD_LIMIT = 100_000
+
 
 def create_jansonius_panel(viewer, jansonius_map, onh_layer, fovea_layer, lines_layer):
     # Buttons for the jansonius mapping
@@ -78,8 +83,8 @@ def create_jansonius_panel(viewer, jansonius_map, onh_layer, fovea_layer, lines_
 
     @magicgui(
         call_button = "Select ONH",
-        onh_x = {"widget_type": "SpinBox"},
-        onh_y = {"widget_type": "SpinBox"},
+        onh_x = {"widget_type": "SpinBox", "min": -COORD_LIMIT, "max": COORD_LIMIT},
+        onh_y = {"widget_type": "SpinBox", "min": -COORD_LIMIT, "max": COORD_LIMIT},
     )
     def select_onh(onh_x:int, onh_y:int):
         nonlocal waiting
@@ -94,8 +99,8 @@ def create_jansonius_panel(viewer, jansonius_map, onh_layer, fovea_layer, lines_
 
     @magicgui(
         call_button="Select fovea",
-        fovea_x={"widget_type": "SpinBox"},
-        fovea_y={"widget_type": "SpinBox"},
+        fovea_x={"widget_type": "SpinBox", "min": -COORD_LIMIT, "max": COORD_LIMIT},
+        fovea_y={"widget_type": "SpinBox", "min": -COORD_LIMIT, "max": COORD_LIMIT},
     )
     def select_fovea(fovea_x: int, fovea_y: int):
         nonlocal waiting
@@ -179,13 +184,14 @@ def create_jansonius_panel(viewer, jansonius_map, onh_layer, fovea_layer, lines_
 
         if waiting and len(onh_layer.data) == 1:
             waiting = False
-            onh_set = True
 
             # changing the values of the SpinBoxes
             y,x = onh_layer.data[0]
             select_onh.onh_x.value = int(x)
             select_onh.onh_y.value = int(y)
 
+            # only mark the landmark as set once both SpinBoxes accepted the point
+            onh_set = True
             update_map_button()
 
             viewer.layers.selection.active = lines_layer
@@ -196,13 +202,14 @@ def create_jansonius_panel(viewer, jansonius_map, onh_layer, fovea_layer, lines_
 
         if waiting and len(fovea_layer.data) == 1:
             waiting = False
-            fovea_set = True
 
             # changing the values of the SpinBoxes
             y,x = fovea_layer.data[0]
             select_fovea.fovea_x.value = int(x)
             select_fovea.fovea_y.value = int(y)
 
+            # only mark the landmark as set once both SpinBoxes accepted the point
+            fovea_set = True
             update_map_button()
 
             viewer.layers.selection.active = lines_layer
